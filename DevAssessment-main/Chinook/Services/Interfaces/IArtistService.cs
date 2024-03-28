@@ -4,10 +4,10 @@ namespace Chinook.Services.Interfaces
 {
     public interface IArtistService
     {
+        Task<List<Artist>> GetArtists();
+        Task<List<Artist>> GetArtistsByName(string name);
+        Task<List<Album>> GetAlbumsForArtist(int artistId);
         Artist GetArtist(long artistId);
         List<Chinook.ClientModels.PlaylistTrack> GetTracks(long artistId, string userId);
-        void FavoriteTrack(long trackId, string userId);
-        void UnfavoriteTrack(long trackId, string userId);
-        void AddTrackToPlaylist(long trackId, string playlistName, string userId);
     }
 }

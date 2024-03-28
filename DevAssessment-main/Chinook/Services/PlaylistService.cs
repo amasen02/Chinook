@@ -41,6 +41,23 @@ namespace Chinook.Services
             return playlistData;
         }
 
+        public Models.Playlist GetFavoritePlaylist(string userId)
+        {
+            // Assuming a naming convention for the favorite playlist
+            var favoritePlaylistName = "My Favorite Tracks";
+
+            var playlist = _dbContext.Playlists
+                .Where(p => p.Name == favoritePlaylistName && p.UserPlaylists.Any(up => up.UserId == userId))
+                .Select(p => p) 
+                .FirstOrDefault();
+
+            if (playlist == null)
+            {
+                return null;
+            }
+
+            return playlist;
+        }
 
         // Implement IDisposable to dispose of the context when the service is done
         public void Dispose()

@@ -7,7 +7,6 @@
 @using Chinook.Services.Interfaces
 @using Chinook.Models
 @using Chinook.ClientModels
-@using Microsoft.EntityFrameworkCore
 @using System.Security.Claims;
 
 @if (!string.IsNullOrWhiteSpace(InfoMessage))
@@ -72,19 +71,20 @@ else
 
         <div class="mb-2">
             <label for="ExistingPlaylist">Add to existing playlist</label>
-            <select class="form-control" id="ExistingPlaylist">
-                <option>Playlist 1</option>
-                <option>Playlist 2</option>
-                <option>Playlist 3</option>
+            <select class="form-control" id="ExistingPlaylist" @bind="SelectedExistingPlaylist">
+                <option value="">-- Select a Playlist --</option>
+                <option value="Playlist 1">Playlist 1</option>
+                <option value="Playlist 2">Playlist 2</option>
+                <option value="Playlist 3">Playlist 3</option>
             </select>
         </div>
         <div class="mb-2">
             <label for="NewPlaylist">Create new playlist</label>
-            <input type="text" id="NewPlaylist" class="form-control" placeholder="Name for the new playlist">
+            <input type="text" id="NewPlaylist" class="form-control" placeholder="Name for the new playlist" @bind="NewPlaylistName">
         </div>
     </Body>
     <Footer>
-        <button class="btn btn-success" @onclick="AddTrackToPlaylist">Save</button>
+        <button class="btn btn-success" @onclick="() => AddTrackToPlaylist(SelectedExistingPlaylist, NewPlaylistName)">Save</button>
     </Footer>
 </Modal>
 
@@ -98,6 +98,9 @@ else
     private PlaylistTrack SelectedTrack;
     private string InfoMessage;
     private string CurrentUserId;
+    private string SelectedExistingPlaylist { get; set; }
+    private string NewPlaylistName { get; set; }
+
 
     protected override async Task OnInitializedAsync()
     {
@@ -136,11 +139,21 @@ else
         PlaylistDialog.Open();
     }
 
-    private void AddTrackToPlaylist()
+    private void AddTrackToPlaylist(string selectedExistingPlaylist, string newPlaylistName)
     {
-        // ArtistService.AddTrackToPlaylist(SelectedTrack.TrackId, playlistName, CurrentUserId);
-        // InfoMessage = $"Track {SelectedTrack.TrackName} added to playlist {playlistName}.";
-        // PlaylistDialog.Close();
+        var targetPlaylistName = !string.IsNullOrWhiteSpace(newPlaylistName) ? newPlaylistName : selectedExistingPlaylist;
+
+        if (!string.IsNullOrEmpty(targetPlaylistName))
+        {
+            TrackService.AddTrackToPlaylist(SelectedTrack.TrackId, targetPlaylistName, CurrentUserId);
+            InfoMessage = $"Track {SelectedTrack.TrackName} added to playlist {targetPlaylistName}.";
+        }
+
+        // Reset the modal state for next use
+        SelectedExistingPlaylist = string.Empty;
+        NewPlaylistName = string.Empty;
+
+        PlaylistDialog.Close();
     }
 
     private void CloseInfoMessage()
