@@ -21,9 +21,9 @@
             </NavLink>
         </div>
         <div class="nav-item px-3">
-            @if (favoritePlaylistId != null)
+            @if (FavoritePlaylistId != null)
             {
-                <NavLink class="nav-link" href="@($"playlist/{favoritePlaylistId}")">
+                <NavLink class="nav-link" href="@($"playlist/{FavoritePlaylistId}")">
                     <i class="bi bi-music-note-list me-3" style="font-size: 1.25em"></i>My favorite tracks
                 </NavLink>
             }
@@ -33,29 +33,29 @@
 </div>
 
 @code {
-    [CascadingParameter] private Task<AuthenticationState> authenticationState { get; set; }
+    [CascadingParameter] private Task<AuthenticationState> AuthenticationState { get; set; }
 
     private string CurrentUserId;
-    private bool collapseNavMenu = true;
-    private string? NavMenuCssClass => collapseNavMenu ? "collapse" : null;
-    private long? favoritePlaylistId;
+    private bool CollapseNavMenu = true;
+    private string? NavMenuCssClass => CollapseNavMenu ? "collapse" : null;
+    private long? FavoritePlaylistId;
 
     private void ToggleNavMenu()
     {
-        collapseNavMenu = !collapseNavMenu;
+        CollapseNavMenu = !CollapseNavMenu;
     }
 
     protected override async Task OnInitializedAsync()
     {
         CurrentUserId = await GetUserId();
 
-        favoritePlaylistId = PlaylistService.GetFavoritePlaylist(CurrentUserId)?.PlaylistId;
+        FavoritePlaylistId = PlaylistService.GetFavoritePlaylist(CurrentUserId)?.PlaylistId;
 
     }
 
     private async Task<string> GetUserId()
     {
-        var user = (await authenticationState).User;
+        var user = (await AuthenticationState).User;
         var userId = user.FindFirst(u => u.Type.Contains(ClaimTypes.NameIdentifier))?.Value;
         return userId;
     }

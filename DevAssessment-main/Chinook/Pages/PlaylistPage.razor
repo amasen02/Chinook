@@ -67,8 +67,8 @@ else
 
 @code {
     [Parameter] public long PlaylistId { get; set; }
-    [CascadingParameter] private Task<AuthenticationState> authenticationState { get; set; }
 
+    [CascadingParameter] private Task<AuthenticationState> AuthenticationState { get; set; }
     private Chinook.ClientModels.Playlist Playlist;
     private string CurrentUserId;
     private string InfoMessage;
@@ -81,7 +81,7 @@ else
 
     private async Task<string> GetUserId()
     {
-        var user = (await authenticationState).User;
+        var user = (await AuthenticationState).User;
         var userId = user.FindFirst(u => u.Type.Contains(ClaimTypes.NameIdentifier))?.Value;
         return userId;
     }

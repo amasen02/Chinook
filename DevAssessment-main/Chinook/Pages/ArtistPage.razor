@@ -90,9 +90,9 @@ else
 
 @code {
     [Parameter] public long ArtistId { get; set; }
-    [CascadingParameter] private Task<AuthenticationState> authenticationState { get; set; }
-    private Modal PlaylistDialog { get; set; }
 
+    [CascadingParameter] private Task<AuthenticationState> AuthenticationState { get; set; }
+    private Modal PlaylistDialog { get; set; }
     private Artist Artist;
     private List<PlaylistTrack> Tracks;
     private PlaylistTrack SelectedTrack;
@@ -111,7 +111,7 @@ else
 
     private async Task<string> GetUserId()
     {
-        var user = (await authenticationState).User;
+        var user = (await AuthenticationState).User;
         var userId = user.FindFirst(u => u.Type.Contains(ClaimTypes.NameIdentifier))?.Value;
         return userId;
     }

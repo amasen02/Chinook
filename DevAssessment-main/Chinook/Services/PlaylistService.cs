@@ -1,6 +1,4 @@
 ﻿using Microsoft.EntityFrameworkCore;
-using System;
-using System.Collections.Generic;
 using System.Linq;
 using Chinook.Services.Interfaces;
 using Chinook.ClientModels;
@@ -8,21 +6,25 @@ using Chinook.Models;
 
 namespace Chinook.Services
 {
-    public class PlaylistService : IPlaylistService
+    public class PlaylistService : IPlaylistService, IDisposable
     {
         private readonly ChinookContext _dbContext;
 
         public PlaylistService(IDbContextFactory<ChinookContext> dbFactory)
         {
-            _dbContext = dbFactory.CreateDbContext(); // Synchronously create the context
+            // DbContext is created directly from the factory without asynchronous operation due to constructor limitation.
+            _dbContext = dbFactory.CreateDbContext();
         }
 
         public ClientModels.Playlist GetPlaylist(long playlistId, string userId)
         {
+            // Fetches a playlist including its tracks, and related albums and artists, also determines if each track is a favorite for the given user.
             var playlistData = _dbContext.Playlists
-                .Include(a => a.Tracks).ThenInclude(a => a.Album).ThenInclude(a => a.Artist)
+                .Include(p => p.Tracks)
+                    .ThenInclude(t => t.Album)
+                        .ThenInclude(a => a.Artist)
                 .Where(p => p.PlaylistId == playlistId)
-                .Select(p => new ClientModels.Playlist // Ensure this is the correct Playlist from ClientModels
+                .Select(p => new ClientModels.Playlist
                 {
                     Name = p.Name,
                     Tracks = p.Tracks.Select(t => new PlaylistTrack
@@ -36,32 +38,27 @@ namespace Chinook.Services
                 })
                 .FirstOrDefault();
 
-            if (playlistData == null) throw new Exception($"Playlist with ID {playlistId} not found.");
+            if (playlistData == null)
+            {
+                throw new Exception($"Playlist with ID {playlistId} not found.");
+            }
 
             return playlistData;
         }
 
         public Models.Playlist GetFavoritePlaylist(string userId)
         {
-            // Assuming a naming convention for the favorite playlist
-            var favoritePlaylistName = "My Favorite Tracks";
-
+            // Retrieves a user's favorite playlist by a predefined naming convention, if it exists.
+            const string favoritePlaylistName = "My Favorite Tracks";
             var playlist = _dbContext.Playlists
-                .Where(p => p.Name == favoritePlaylistName && p.UserPlaylists.Any(up => up.UserId == userId))
-                .Select(p => p) 
-                .FirstOrDefault();
-
-            if (playlist == null)
-            {
-                return null;
-            }
+                .FirstOrDefault(p => p.Name == favoritePlaylistName && p.UserPlaylists.Any(up => up.UserId == userId));
 
             return playlist;
         }
 
-        // Implement IDisposable to dispose of the context when the service is done
         public void Dispose()
         {
+            // Ensures the DbContext is properly disposed of when the service is no longer in use.
             _dbContext?.Dispose();
         }
     }

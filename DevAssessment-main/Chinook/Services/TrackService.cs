@@ -1,7 +1,10 @@
-﻿using Chinook.ClientModels;
-using Chinook.Models;
+﻿using Microsoft.EntityFrameworkCore;
+using System;
+using System.Collections.Generic;
+using System.Linq;
 using Chinook.Services.Interfaces;
-using Microsoft.EntityFrameworkCore;
+using Chinook.ClientModels;
+using Chinook.Models;
 
 namespace Chinook.Services
 {
@@ -16,9 +19,10 @@ namespace Chinook.Services
             _dbContext = _dbFactory.CreateDbContext();
         }
 
+        // Fetches a single track and determines if it is a favorite for the user.
         public ClientModels.PlaylistTrack GetTrackByID(string userId, long trackID)
         {
-            var track = _dbContext.Tracks
+            return _dbContext.Tracks
                 .Where(t => t.TrackId == trackID)
                 .Select(t => new ClientModels.PlaylistTrack
                 {
@@ -26,12 +30,14 @@ namespace Chinook.Services
                     TrackId = t.TrackId,
                     TrackName = t.Name,
                     IsFavorite = t.Playlists.Any(pt => pt.UserPlaylists.Any(up => up.UserId == userId))
-                }).FirstOrDefault();
-            return track;
+                })
+                .FirstOrDefault();
         }
+
+        // Retrieves all tracks for a specific artist, marking those that are favorites.
         public List<ClientModels.PlaylistTrack> GetTracks(long artistId, string userId)
         {
-            var tracks = _dbContext.Tracks
+            return _dbContext.Tracks
                 .Where(t => t.Album.ArtistId == artistId)
                 .Select(t => new ClientModels.PlaylistTrack
                 {
@@ -41,54 +47,38 @@ namespace Chinook.Services
                     IsFavorite = t.Playlists.Any(pt => pt.UserPlaylists.Any(up => up.UserId == userId))
                 })
                 .ToList();
-            return tracks;
         }
+
+        // Marks a track as a favorite by adding it to the "My Favorite Tracks" playlist.
         public void FavoriteTrack(long trackId, string userId)
         {
-            var favoritePlaylist = _dbContext.Playlists
-                .Include(p => p.UserPlaylists)
-                .FirstOrDefault(p => p.Name == "My Favorite Tracks" && p.UserPlaylists.Any(up => up.UserId == userId));
+            var playlist = EnsureFavoritePlaylistExists(userId);
 
-            if (favoritePlaylist == null)
+            if (!playlist.Tracks.Any(t => t.TrackId == trackId))
             {
-                favoritePlaylist = new Models.Playlist
-                {
-                    Name = "My Favorite Tracks",
-                    UserPlaylists = new List<UserPlaylist>
-            {
-                new UserPlaylist { UserId = userId }
-            }
-                };
-                _dbContext.Playlists.Add(favoritePlaylist);
-                _dbContext.SaveChanges();
-            }
-
-            var track = _dbContext.Tracks.Find(trackId);
-            if (!favoritePlaylist.Tracks.Contains(track))
-            {
-                favoritePlaylist.Tracks.Add(track);
+                var track = _dbContext.Tracks.Find(trackId);
+                if (track != null) playlist.Tracks.Add(track);
                 _dbContext.SaveChanges();
             }
         }
 
+        // Removes a track from the user's "My Favorite Tracks" playlist.
         public void UnfavoriteTrack(long trackId, string userId)
         {
-            var favoritePlaylist = _dbContext.Playlists
+            var playlist = _dbContext.Playlists
                 .Include(p => p.Tracks)
                 .Include(p => p.UserPlaylists)
                 .FirstOrDefault(p => p.Name == "My Favorite Tracks" && p.UserPlaylists.Any(up => up.UserId == userId));
 
-            if (favoritePlaylist != null)
+            var track = playlist?.Tracks.FirstOrDefault(t => t.TrackId == trackId);
+            if (track != null)
             {
-                var track = favoritePlaylist.Tracks.FirstOrDefault(t => t.TrackId == trackId);
-                if (track != null)
-                {
-                    favoritePlaylist.Tracks.Remove(track);
-                    _dbContext.SaveChanges();
-                }
+                playlist.Tracks.Remove(track);
+                _dbContext.SaveChanges();
             }
         }
 
+        // Removes a track from a specific playlist.
         public void RemoveTrack(long trackId, long playlistId)
         {
             var playlist = _dbContext.Playlists
@@ -97,57 +87,55 @@ namespace Chinook.Services
 
             if (playlist == null) throw new Exception($"Playlist with ID {playlistId} not found.");
 
-            var track = _dbContext.Tracks.Find(trackId);
-            if (track != null && playlist.Tracks.Contains(track))
+            var track = playlist.Tracks.FirstOrDefault(t => t.TrackId == trackId);
+            if (track != null)
             {
                 playlist.Tracks.Remove(track);
-                _dbContext.SaveChanges(); // Synchronously save changes
+                _dbContext.SaveChanges();
             }
-            else
+            else throw new Exception("Track not found in the specified playlist.");
+        }
+
+        // Adds a track to a playlist, creating the playlist if it doesn't exist.
+        public void AddTrackToPlaylist(long trackId, string playlistName, string userId)
+        {
+            var playlist = _dbContext.Playlists
+                .Include(p => p.UserPlaylists)
+                .Include(p => p.Tracks)
+                .FirstOrDefault(p => p.Name == playlistName && p.UserPlaylists.Any(up => up.UserId == userId))
+                ?? CreatePlaylist(playlistName, userId);
+
+            if (!playlist.Tracks.Any(t => t.TrackId == trackId))
             {
-                throw new Exception("Track not found in the specified playlist.");
+                var track = _dbContext.Tracks.Find(trackId);
+                if (track != null) playlist.Tracks.Add(track);
+                else throw new Exception($"Track with ID {trackId} not found.");
+
+                _dbContext.SaveChanges();
             }
         }
 
-        public void AddTrackToPlaylist(long trackId, string playlistName, string userId)
+        private Models.Playlist EnsureFavoritePlaylistExists(string userId)
         {
-            // First, try to find an existing playlist with the given name and user ID.
-            var playlist = _dbContext.Playlists
+            var favoritePlaylist = _dbContext.Playlists
                 .Include(p => p.UserPlaylists)
-                .Include(p => p.Tracks) // Ensure Tracks are included for manipulation
-                .FirstOrDefault(p => p.Name == playlistName && p.UserPlaylists.Any(up => up.UserId == userId));
+                .FirstOrDefault(p => p.Name == "My Favorite Tracks" && p.UserPlaylists.Any(up => up.UserId == userId))
+                ?? CreatePlaylist("My Favorite Tracks", userId);
 
-            // If the playlist does not exist, create a new one.
-            if (playlist == null)
+            return favoritePlaylist;
+        }
+
+        private Models.Playlist CreatePlaylist(string name, string userId)
+        {
+            var newPlaylist = new Models.Playlist
             {
-                playlist = new Models.Playlist
-                {
-                    Name = playlistName,
-                    UserPlaylists = new List<UserPlaylist> { new UserPlaylist { UserId = userId } },
-                    Tracks = new List<Track>()
-                };
-                _dbContext.Playlists.Add(playlist);
-            }
-
-            // Check if the track is already in the playlist to avoid duplicates.
-            if (!playlist.Tracks.Any(t => t.TrackId == trackId))
-            {
-                // Find the track by ID.
-                var trackToAdd = _dbContext.Tracks.Find(trackId);
-                if (trackToAdd != null)
-                {
-                    // Add the track to the playlist.
-                    playlist.Tracks.Add(trackToAdd);
-                }
-                else
-                {
-                    throw new Exception($"Track with ID {trackId} not found.");
-                }
-            }
-
-            // Save changes to the database.
+                Name = name,
+                UserPlaylists = new List<UserPlaylist> { new UserPlaylist { UserId = userId } },
+                Tracks = new List<Track>()
+            };
+            _dbContext.Playlists.Add(newPlaylist);
             _dbContext.SaveChanges();
+            return newPlaylist;
         }
     }
 }
-
